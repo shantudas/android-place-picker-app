@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Place Picker</string>
-    <string name="google_maps_key" translatable="false">AIzaSyAhVzJGt8Z8MCb5t-_Qso2StVxXB8eEktU</string>
+    <string name="google_maps_key" translatable="false">YOUR_API_KEY</string>
 
     <string name="no_geocoder_available">No geocoder available</string>
 
