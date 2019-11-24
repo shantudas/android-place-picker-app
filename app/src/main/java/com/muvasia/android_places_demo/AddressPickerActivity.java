@@ -1,11 +1,15 @@
 package com.muvasia.android_places_demo;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.location.Location;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.ResultReceiver;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -15,6 +19,7 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -37,6 +42,7 @@ import com.google.android.libraries.places.api.model.PlaceLikelihood;
 import com.google.android.libraries.places.api.net.FindCurrentPlaceRequest;
 import com.google.android.libraries.places.api.net.FindCurrentPlaceResponse;
 import com.google.android.libraries.places.api.net.PlacesClient;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -89,17 +95,17 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
 
         // Set defaults, then update using values stored in the Bundle.
         mAddressRequested = false;
-        mAddressOutput="";
+        mAddressOutput = "";
 
         updateValuesFromBundle(savedInstanceState);
 
-        updateUIWidgets();
+        //updateUIWidgets();
 
     }
 
     private void initialization() {
         nearbyPlaceArrayList = new ArrayList<>();
-        Toolbar toolbar=findViewById(R.id.toolbar);
+        Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(getResources().getString(R.string.app_name));
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
@@ -111,12 +117,17 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
         recyclerViewNearByPlaces.setAdapter(adapter);
 
 
-        Places.initialize(getApplicationContext(), getResources().getString(R.string.google_maps_key));
-        mPlacesClient = Places.createClient(this);
+        if (!getResources().getString(R.string.google_maps_key).isEmpty()) {
+            Places.initialize(getApplicationContext(), getResources().getString(R.string.google_maps_key));
+            mPlacesClient = Places.createClient(this);
+        } else {
+            Log.d(TAG, "google api key is empty ");
+        }
+
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(AddressPickerActivity.this);
 
         tvAddress = findViewById(R.id.tvAddress);
-        mProgressBar=findViewById(R.id.mProgressBar);
+        mProgressBar = findViewById(R.id.mProgressBar);
         mResultReceiver = new AddressResultReceiver(new Handler());
 
     }
@@ -142,48 +153,52 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
     /**
      * Toggles the visibility of the progress bar. Enables or disables the Fetch Address button.
      */
-    private void updateUIWidgets() {
+    /*private void updateUIWidgets() {
         if (mAddressRequested) {
             mProgressBar.setVisibility(ProgressBar.VISIBLE);
         } else {
             mProgressBar.setVisibility(ProgressBar.GONE);
         }
-    }
-
+    }*/
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
 
-        getDeviceLocation();
+        if (isLocationPermissionGranted()) {
+            getDeviceLocation();
+            mMap.setMyLocationEnabled(true);
+        } else {
+            requestLocationPermission();
+        }
 
-        mMap.setOnCameraIdleListener(new GoogleMap.OnCameraIdleListener() {
-            @Override
-            public void onCameraIdle() {
+
+        mMap.setOnCameraIdleListener(() -> {
+            setLoading(true);
+            //get latlng at the center by calling
+            LatLng midLatLng = mMap.getCameraPosition().target;
+            Log.d(TAG, "myLocation" + mLastKnownLocation.getLatitude() + " " + mLastKnownLocation.getLongitude());
+            Log.d(TAG, "onCameraIdle" + midLatLng.latitude + " " + midLatLng.longitude);
+
+            if (midLatLng != null) {
+                Location targetLocation = new Location("");//provider name is unnecessary
+                targetLocation.setLatitude(midLatLng.latitude);
+                targetLocation.setLongitude(midLatLng.longitude);
                 setLoading(true);
-                //get latlng at the center by calling
-                LatLng midLatLng = mMap.getCameraPosition().target;
-                Log.d(TAG, "myLocation"+ mLastKnownLocation.getLatitude()+" "+mLastKnownLocation.getLongitude());
-                Log.d(TAG, "onCameraIdle"+ midLatLng.latitude+" "+midLatLng.longitude);
+                startIntentService(targetLocation);
 
-                if (midLatLng != null) {
-                    Location targetLocation = new Location("");//provider name is unnecessary
-                    targetLocation.setLatitude(midLatLng.latitude);
-                    targetLocation.setLongitude(midLatLng.longitude);
-                    startIntentService(targetLocation);
-                    return;
-                }
-                // If we have not yet retrieved the user location, we process the user's request by setting
-                // mAddressRequested to true. As far as the user is concerned, pressing the Fetch Address button
-                // immediately kicks off the process of getting the address.
-                mAddressRequested = true;
+                return;
             }
+            // If we have not yet retrieved the user location, we process the user's request by setting
+            // mAddressRequested to true. As far as the user is concerned, pressing the Fetch Address button
+            // immediately kicks off the process of getting the address.
+            mAddressRequested = true;
         });
 
         /*mMap.addMarker(new MarkerOptions()
                 .position(new LatLng(mLastKnownLocation.getLatitude(),
                         mLastKnownLocation.getLongitude())));*/
 
-        mMap.setMyLocationEnabled(true);
+
     }
 
 
@@ -197,61 +212,160 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
          * cases when a location is not available.
          */
         try {
-            if (mLocationPermissionGranted) {
-                Task<Location> locationResult = mFusedLocationProviderClient.getLastLocation();
-                locationResult.addOnCompleteListener(AddressPickerActivity.this, new OnCompleteListener<Location>() {
-                    @Override
-                    public void onComplete(@NonNull Task<Location> task) {
-                        if (task.isSuccessful()) {
-                            // Set the map's camera position to the current location of the device.
-                            mLastKnownLocation = task.getResult();
-                            Log.d(TAG, "Latitude: " + mLastKnownLocation.getLatitude());
-                            Log.d(TAG, "Longitude: " + mLastKnownLocation.getLongitude());
+            Task<Location> locationResult = mFusedLocationProviderClient.getLastLocation();
+            locationResult.addOnCompleteListener(AddressPickerActivity.this, new OnCompleteListener<Location>() {
+                @Override
+                public void onComplete(@NonNull Task<Location> task) {
+                    if (task.isSuccessful()) {
+                        // Set the map's camera position to the current location of the device.
+                        mLastKnownLocation = task.getResult();
+                        Log.d(TAG, "Latitude: " + mLastKnownLocation.getLatitude());
+                        Log.d(TAG, "Longitude: " + mLastKnownLocation.getLongitude());
 
-                            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
-                                    new LatLng(mLastKnownLocation.getLatitude(),
-                                            mLastKnownLocation.getLongitude()), DEFAULT_ZOOM));
-
+                        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                                new LatLng(mLastKnownLocation.getLatitude(),
+                                        mLastKnownLocation.getLongitude()), DEFAULT_ZOOM));
 
 
-                        } else {
-                            Log.d(TAG, "Current location is null. Using defaults.");
-                            Log.e(TAG, "Exception: %s", task.getException());
+                    } else {
+                        Log.d(TAG, "Current location is null. Using defaults.");
+                        Log.e(TAG, "Exception: %s", task.getException());
 
-                            mMap.moveCamera(CameraUpdateFactory
-                                    .newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
-                        }
-
-                        getCurrentPlaceLikelihoods();
-
-
-                        if (mLastKnownLocation != null) {
-                            startIntentService(mLastKnownLocation);
-                            return;
-                        }
-                        // If we have not yet retrieved the user location, we process the user's request by setting
-                        // mAddressRequested to true. As far as the user is concerned, pressing the Fetch Address button
-                        // immediately kicks off the process of getting the address.
-                        mAddressRequested = true;
-
-
-
+                        mMap.moveCamera(CameraUpdateFactory
+                                .newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
                     }
-                });
-            }
+
+                    getCurrentPlaceLikelihoods();
+
+
+                    /*if (mLastKnownLocation != null) {
+                        startIntentService(mLastKnownLocation);
+                        return;
+                    }
+                    // If we have not yet retrieved the user location, we process the user's request by setting
+                    // mAddressRequested to true. As far as the user is concerned, pressing the Fetch Address button
+                    // immediately kicks off the process of getting the address.
+                    mAddressRequested = true;*/
+                }
+            });
+
         } catch (SecurityException e) {
             e.printStackTrace();
         }
     }
 
+    /**
+     * Return the current state of the permissions needed.
+     */
+    private boolean isLocationPermissionGranted() {
+        int permissionState = ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION);
+        Log.d(TAG, " permissionState :: " + permissionState);
+        return permissionState == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * permission request ACCESS_FINE_LOCATION
+     */
+    private void requestLocationPermission() {
+        boolean shouldProvideRationale = ActivityCompat.
+                shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION);
+
+        // Provide an additional rationale to the user. This would happen if the user denied the
+        // request previously, but didn't check the "Don't ask again" checkbox.
+        if (shouldProvideRationale) {
+            Log.i(TAG, "Displaying permission rationale to provide additional context.");
+
+            showSnackbar(R.string.contact_permission_rationale, android.R.string.ok,
+                    view -> {
+                        // Request permission
+                        startLocationPermissionRequest();
+                    });
+
+        } else {
+            Log.i(TAG, "Requesting permission");
+            // Request permission. It's possible this can be auto answered if device policy
+            // sets the permission in a given state or the user denied the permission
+            // previously and checked "Never ask again".
+            startLocationPermissionRequest();
+        }
+    }
+
+    private void startLocationPermissionRequest() {
+        Log.d(TAG, "startContactPermissionRequest called");
+        ActivityCompat.requestPermissions(AddressPickerActivity.this,
+                new String[]{Manifest.permission.READ_CONTACTS},
+                Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+    }
+
+    /**
+     * Callback received when a permissions request has been completed.
+     */
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        Log.i(TAG, "onRequestPermissionResult");
+        if (requestCode == Constants.PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION) {
+            if (grantResults.length <= 0) {
+                // If user interaction was interrupted, the permission request is cancelled and you
+                // receive empty arrays.
+                Log.i(TAG, "User interaction was cancelled.");
+            } else if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                getDeviceLocation();
+            } else {
+                // Permission denied.
+
+                // Notify the user via a SnackBar that they have rejected a core permission for the
+                // app, which makes the Activity useless. In a real app, core permissions would
+                // typically be best requested during a welcome-screen flow.
+
+                // Additionally, it is important to remember that a permission might have been
+                // rejected without asking the user for permission (device policy or "Never ask
+                // again" prompts). Therefore, a user interface affordance is typically implemented
+                // when permissions are denied. Otherwise, your app could appear unresponsive to
+                // touches or interactions which have required permissions.
+                showSnackbar(R.string.contact_permission_denied_explanation, R.string.settings,
+                        view -> {
+                            // Build intent that displays the App settings screen.
+                            Intent intent = new Intent();
+                            intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            Uri uri = Uri.fromParts("package", BuildConfig.APPLICATION_ID, null);
+                            intent.setData(uri);
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        });
+            }
+        }
+    }
+
+    /**
+     * Shows a {@link Snackbar}.
+     *
+     * @param mainTextStringId The id for the string resource for the Snackbar text.
+     * @param actionStringId   The text of the action item.
+     * @param listener         The listener associated with the Snackbar action.
+     */
+    private void showSnackbar(final int mainTextStringId, final int actionStringId,
+                              View.OnClickListener listener) {
+        Snackbar.make(findViewById(android.R.id.content),
+                getString(mainTextStringId),
+                Snackbar.LENGTH_INDEFINITE)
+                .setAction(getString(actionStringId), listener).show();
+    }
+
+    /**
+     * Calls the findCurrentPlace method in Google Maps Platform Places API.
+     * Response contains a list of placeLikelihood objects.
+     * Takes the most likely places and extracts the place details for access in other methods.
+     */
     private void getCurrentPlaceLikelihoods() {
-        // Use fields to define the data types to return.
+        // Use fiels to define the data types to return.
         List<Place.Field> placeFields = Arrays.asList(Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG);
 
         // Get the likely places - that is, the businesses and other points of interest that
         // are the best match for the device's current location.
         @SuppressWarnings("MissingPermission") final FindCurrentPlaceRequest request =
-                FindCurrentPlaceRequest.builder(placeFields).build();
+                FindCurrentPlaceRequest
+                        .builder(placeFields)
+                        .build();
         Task<FindCurrentPlaceResponse> placeResponse = mPlacesClient.findCurrentPlace(request);
         placeResponse.addOnCompleteListener(this,
                 task -> {
