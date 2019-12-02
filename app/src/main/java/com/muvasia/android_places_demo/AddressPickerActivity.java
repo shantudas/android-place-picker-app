@@ -17,6 +17,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.muvasia.android_places_demo.Constants.AUTOCOMPLETE_REQUEST_CODE;
+import static com.muvasia.android_places_demo.Constants.RESULT_LOCATION_KEY;
 
 
 public class AddressPickerActivity extends AppCompatActivity implements OnMapReadyCallback {
@@ -98,6 +100,7 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
     private String mAddressOutput;
     private TextView tvAddress;
     private ProgressBar mProgressBar;
+    private RelativeLayout rlSelectAddress;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -131,6 +134,17 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
         recyclerViewNearByPlaces.setLayoutManager(layoutManager);
         adapter = new NearbyPlacesAdapter(this, nearbyPlaceArrayList);
         recyclerViewNearByPlaces.setAdapter(adapter);
+        recyclerViewNearByPlaces.addOnItemTouchListener(new RecyclerTouchListener(this, recyclerViewNearByPlaces, new ClickListener() {
+            @Override
+            public void onClick(View view, int position) {
+                gotoMainActivity(nearbyPlaceArrayList.get(position).getAddress());
+            }
+
+            @Override
+            public void onLongClick(View view, int position) {
+
+            }
+        }));
 
 
         if (!getResources().getString(R.string.google_maps_key).isEmpty()) {
@@ -145,32 +159,19 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
         tvAddress = findViewById(R.id.tvAddress);
         mProgressBar = findViewById(R.id.mProgressBar);
         mResultReceiver = new AddressResultReceiver(new Handler());
+        rlSelectAddress = findViewById(R.id.rlSelectAddress);
+        rlSelectAddress.setOnClickListener((View view) -> {
+            gotoMainActivity(mAddressOutput);
+        });
 
+    }
 
-        /*// Initialize the AutocompleteSupportFragment.
-        AutocompleteSupportFragment autocompleteFragment = (AutocompleteSupportFragment)
-                getSupportFragmentManager().findFragmentById(R.id.autocomplete_fragment);
+    private void gotoMainActivity(String address) {
+        Intent intent = new Intent();
+        intent.putExtra(RESULT_LOCATION_KEY,address);
+        setResult(RESULT_OK,intent);
 
-        // Specify the types of place data to return.
-        autocompleteFragment.setPlaceFields(Arrays.asList(Place.Field.ID, Place.Field.NAME));
-
-        // Set up a PlaceSelectionListener to handle the response.
-        autocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
-            @Override
-            public void onPlaceSelected(Place place) {
-                // TODO: Get info about the selected place.
-                Log.i(TAG, "Place: " + place.getName() + ", " + place.getId());
-                mAddressOutput = place.getAddress();
-                displayAddressOutput();
-            }
-
-            @Override
-            public void onError(Status status) {
-                // TODO: Handle the error.
-                Log.i(TAG, "An error occurred: " + status);
-            }
-        });*/
-
+        finish();
     }
 
     /**
