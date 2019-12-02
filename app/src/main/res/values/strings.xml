@@ -22,4 +22,5 @@
     <!-- allow contact strings -->
     <string name="contact_permission_rationale">Contact permission is needed for core functionality</string>
     <string name="contact_permission_denied_explanation">Contact permission was denied, but is needed for core functionality.</string>
+    <string name="menu_search">search</string>
 </resources>

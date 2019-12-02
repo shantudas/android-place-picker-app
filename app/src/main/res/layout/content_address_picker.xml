@@ -24,10 +24,10 @@
         <ImageView
             android:layout_width="36dp"
             android:layout_height="36dp"
-            android:tint="@color/colorAccent"
-            android:layout_centerVertical="true"
             android:layout_centerHorizontal="true"
-            android:src="@drawable/ic_location"/>
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_location"
+            android:tint="@color/colorAccent" />
     </RelativeLayout>
 
 
@@ -52,12 +52,14 @@
             android:id="@+id/tvAddress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:ellipsize="marquee"
-            android:singleLine="true"
-            android:scrollHorizontally="true"
             android:layout_below="@+id/labelSelectThisLocation"
+            android:ellipsize="marquee"
+            android:layout_toStartOf="@+id/imgViewArrowRight"
+            android:scrollHorizontally="true"
+            android:singleLine="true"
             android:textColor="@color/colorWhite"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:layout_toLeftOf="@+id/imgViewArrowRight" />
 
         <ProgressBar
             android:id="@+id/mProgressBar"
@@ -69,6 +71,21 @@
             android:layout_centerVertical="true"
             android:visibility="visible" />
 
+        <ImageView
+            android:id="@+id/imgViewArrowRight"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:src="@drawable/ic_keyboard_arrow_right"
+            android:tint="@android:color/white" />
+
     </RelativeLayout>
 
+    <!--<fragment
+        android:id="@+id/autocomplete_fragment"
+        android:name="com.google.android.libraries.places.widget.AutocompleteSupportFragment"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />-->
 </RelativeLayout>

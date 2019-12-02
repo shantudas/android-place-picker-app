@@ -2,6 +2,7 @@ package com.muvasia.android_places_demo;
 
 public class Constants {
     public static final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1001;
+    public static final int AUTOCOMPLETE_REQUEST_CODE = 2001;
 
     static final int SUCCESS_RESULT = 0;
 
