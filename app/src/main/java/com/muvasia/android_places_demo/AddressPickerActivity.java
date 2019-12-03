@@ -168,8 +168,8 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
 
     private void gotoMainActivity(String address) {
         Intent intent = new Intent();
-        intent.putExtra(RESULT_LOCATION_KEY,address);
-        setResult(RESULT_OK,intent);
+        intent.putExtra(RESULT_LOCATION_KEY, address);
+        setResult(RESULT_OK, intent);
 
         finish();
     }
@@ -553,6 +553,10 @@ public class AddressPickerActivity extends AppCompatActivity implements OnMapRea
                 mAddressOutput = place.getAddress();
                 // do query with address
                 displayAddressOutput();
+
+                //map camera update to the location
+                mMap.moveCamera(CameraUpdateFactory.newLatLng(place.getLatLng()));
+                mMap.animateCamera(CameraUpdateFactory.zoomTo(DEFAULT_ZOOM));
 
             } else if (resultCode == AutocompleteActivity.RESULT_ERROR) {
                 // TODO: Handle the error.
